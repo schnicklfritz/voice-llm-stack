@@ -1,0 +1,10 @@
+# Environment files with secrets
+.env
+
+# Docker volumes with data
+sillytavern/
+ollama/
+alltalk/
+
+# Docker override for local dev
+docker-compose.override.yml
