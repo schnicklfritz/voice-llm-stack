@@ -1,10 +1,12 @@
 # Environment files with secrets
 .env
 
-# Docker volumes with data
-sillytavern/
-ollama/
-alltalk/
+# Docker volume data (not the Dockerfiles)
+sillytavern/config/
+sillytavern/data/
+sillytavern/plugins/
+ollama/models/
+alltalk/models/
 
-# Docker override for local dev
+# Local override
 docker-compose.override.yml
