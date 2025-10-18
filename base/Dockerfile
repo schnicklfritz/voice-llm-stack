@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y \
     && echo "PasswordAuthentication no" >> /etc/ssh/sshd_config \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install official Ollama with GPU support
+# Install latest Ollama (has cuda_v13 support)
 RUN curl -L https://github.com/ollama/ollama/releases/download/v0.5.4/ollama-linux-amd64.tgz -o /tmp/ollama.tgz && \
     tar -xzf /tmp/ollama.tgz -C /usr/local && \
     rm /tmp/ollama.tgz

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-# Ensure library paths for GPU
+# GPU library paths
 export LD_LIBRARY_PATH="/usr/local/lib/ollama:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
 export PATH="/opt/venv/bin:$PATH"
 
@@ -20,11 +20,12 @@ if [ ! -d /workspace/alltalk_tts ]; then
     /opt/venv/bin/pip install --upgrade pip
     git clone --depth 1 https://github.com/erew123/alltalk_tts.git /workspace/alltalk_tts
     cd /workspace/alltalk_tts
-    /opt/venv/bin/pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+    # CUDA 12.4 PyTorch (backward compatible with CUDA 13.0 driver)
+    /opt/venv/bin/pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
     /opt/venv/bin/pip install gradio pydub librosa soundfile transformers accelerate
 fi
 
-# Start Ollama
+# Start Ollama (will auto-select cuda_v13 libraries)
 ollama serve &
 sleep 5
 
@@ -44,5 +45,4 @@ echo ""
 echo "Pull a model: ollama pull dolphin-mistral"
 echo "════════════════════════════════════════"
 
-# Keep container alive
 sleep infinity
