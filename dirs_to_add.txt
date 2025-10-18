@@ -1,0 +1,10 @@
+# Create these directories in your repo (add a .gitkeep in each)
+
+sillytavern/.gitkeep
+ollama/.gitkeep
+alltalk/.gitkeep
+venv/.gitkeep
+logs/.gitkeep
+image_store/.gitkeep
+models/.gitkeep
+chroma_data/.gitkeep

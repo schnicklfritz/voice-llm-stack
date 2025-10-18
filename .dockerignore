@@ -1,0 +1,25 @@
+# Exclude git and local data to keep CI builds small
+.git
+.gitignore
+.gitkeep
+.env
+.env.local
+venv
+venv/
+node_modules
+node_modules/
+models
+image_store
+chroma_data
+outputs
+logs
+*.log
+*.mp4
+*.mkv
+*.wav
+*.mp3
+*.safetensors
+*.ckpt
+*.pth
+*.pt
+*.bin

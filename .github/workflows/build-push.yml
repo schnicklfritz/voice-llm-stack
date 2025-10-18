@@ -1,45 +1,69 @@
-name: Build and Push Docker Image
+name: Build and Push Docker Images
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - 'base/**'
-      - 'opt/**'
-      - 'usr/**'
-      - '.github/workflows/**'
+    branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
-  build-push:
-    name: Build and Push Voice-LLM Stack
+  build-and-push:
     runs-on: ubuntu-latest
+    env:
+      IMAGE_BASE: ${{ secrets.DOCKERHUB_USERNAME || 'schnicklbob' }}/quickpod-voice-llm
+      IMAGE_API: ${{ secrets.DOCKERHUB_USERNAME || 'schnicklbob' }}/image-api
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push image
+      - name: Build and push base image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: base/Dockerfile
+          platforms: linux/amd64
           push: true
           tags: |
-            schnicklbob/quickpod-voice-llm:latest
-            schnicklbob/quickpod-voice-llm:${{ github.sha }}
-          platforms: linux/amd64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            ${{ env.IMAGE_BASE }}:${{ github.sha }}
+            ${{ env.IMAGE_BASE }}:latest
 
-      - name: Image digest
-        run: echo Image pushed with tags latest and ${{ github.sha }}
+      - name: Build and push image-api
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/image_api.Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.IMAGE_API }}:${{ github.sha }}
+            ${{ env.IMAGE_API }}:latest
+
+      - name: Upload image info artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-tags
+          path: |
+            ./image_tags.txt
+        continue-on-error: true
+
+      - name: Create image tag file
+        run: |
+          echo "base=${{ env.IMAGE_BASE }}:${{ github.sha }}" > image_tags.txt
+          echo "base_latest=${{ env.IMAGE_BASE }}:latest" >> image_tags.txt
+          echo "api=${{ env.IMAGE_API }}:${{ github.sha }}" >> image_tags.txt
+          echo "api_latest=${{ env.IMAGE_API }}:latest" >> image_tags.txt

@@ -1,0 +1,16 @@
+fastapi==0.95.2
+uvicorn[standard]==0.21.1
+pillow==10.0.0
+transformers==4.35.0
+diffusers==0.20.2
+safetensors==0.3.2
+accelerate==0.20.3
+scipy
+numpy
+torchvision
+tqdm
+ftfy
+regex
+tokenizers
+# optional: xformers for speed (only install if you know host supports it)
+# xformers

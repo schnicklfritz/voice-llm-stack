@@ -1,12 +1,49 @@
-# Environment files with secrets
-.env
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.env
+env/
+venv/
+.venv/
+venv.bak/
+pip-wheel-metadata/
+*.egg-info/
 
-# Docker volume data (not the Dockerfiles)
-sillytavern/config/
-sillytavern/data/
-sillytavern/plugins/
-ollama/models/
-alltalk/models/
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
 
-# Local override
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
 docker-compose.override.yml
+*.log
+*.pid
+*.sock
+
+# Model weights / large files (do NOT commit)
+models/
+image_store/
+chroma_data/
+outputs/
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.bin
+
+# IDEs
+.vscode/
+.idea/
+
+# GitHub Actions artifacts
+.github/workflows/*.artifact
+
+# Misc
+/.cache/
+*.sqlite
