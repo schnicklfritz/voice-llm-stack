@@ -26,14 +26,14 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Install Python 3.11
+# Install Python 3.12 (default in Ubuntu 24.04)
 RUN apt-get update && apt-get install -y \
-    python3.11 python3.11-venv python3-pip \
+    python3 python3-venv python3-pip \
     ffmpeg sox libsndfile1 \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Create virtual environment for AllTalk
-RUN python3.11 -m venv /opt/venv
+RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
