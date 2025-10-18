@@ -24,10 +24,11 @@ services:
       - ALLTALK_PORT=7851
       - HEALTH_PORT=8686
     volumes:
-      - ./sillytavern/config:/home/node/app/config:rw
-      - ./sillytavern/data:/home/node/app/data:rw
+      # Persist installations across restarts
+      - ./sillytavern:/home/node/app:rw
       - ./ollama:/root/.ollama:rw
-      - ./alltalk:/workspace/alltalk_tts/models:rw
+      - ./alltalk:/workspace/alltalk_tts:rw
+      - ./venv:/opt/venv:rw
       - ./logs:/var/log/quickpod:rw
     shm_size: "8gb"
     restart: unless-stopped
@@ -36,4 +37,4 @@ services:
       interval: 10s
       timeout: 3s
       retries: 6
-      start_period: 20s
+      start_period: 120s  # Longer for first-run installs
