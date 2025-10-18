@@ -62,10 +62,27 @@ RUN mkdir -p /home/node/app/config \
 WORKDIR /workspace
 RUN git clone https://github.com/erew123/alltalk_tts.git /workspace/alltalk_tts
 WORKDIR /workspace/alltalk_tts
-RUN pip install --no-cache-dir torch torchvision torchaudio \
-    && pip install --no-cache-dir -r requirements.txt \
-    && rm -rf /root/.cache/pip /tmp/* /var/tmp/* \
-    && find /opt/venv -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+
+# Install PyTorch first
+RUN pip install --no-cache-dir torch torchvision torchaudio
+
+# Install AllTalk requirements (check if requirements.txt exists, if not install core deps)
+RUN if [ -f requirements.txt ]; then \
+        pip install --no-cache-dir -r requirements.txt; \
+    else \
+        pip install --no-cache-dir \
+            gradio \
+            pydub \
+            librosa \
+            numpy \
+            scipy \
+            soundfile \
+            transformers \
+            accelerate \
+            TTS; \
+    fi && \
+    rm -rf /root/.cache/pip /tmp/* /var/tmp/* && \
+    find /opt/venv -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 # ============================================
 # STAGE 4: Final Assembly
