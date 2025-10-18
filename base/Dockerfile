@@ -1,7 +1,7 @@
 # ============================================
 # STAGE 1: Base System
 # ============================================
-FROM nvidia/cuda:12.1.0-runtime-ubuntu24.04 AS base-system
+FROM nvidia/cuda:12.8.1-runtime-ubuntu24.04 AS base-system
 
 USER root
 ENV DEBIAN_FRONTEND=noninteractive
