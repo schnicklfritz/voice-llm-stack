@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     nodejs npm \
     python3 python3-venv python3-pip \
     ffmpeg sox libsndfile1 \
+    tini \
     && mkdir -p /var/run/sshd /root/.ollama \
     && sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config \
     && echo "PasswordAuthentication no" >> /etc/ssh/sshd_config \
@@ -28,4 +29,5 @@ RUN chmod +x /usr/local/bin/quickpod-entrypoint.sh
 
 EXPOSE 22 8000 11434 7851 8686
 
-ENTRYPOINT ["/usr/local/bin/quickpod-entrypoint.sh"]
+# Use tini as PID 1 to forward signals and reap zombies, then run the entrypoint script
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/quickpod-entrypoint.sh"]

@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   voice-llm-stack:
     build:
@@ -5,6 +7,11 @@ services:
       dockerfile: base/Dockerfile
     image: ${DOCKERHUB_USERNAME:-schnicklbob}/quickpod-voice-llm:latest
     container_name: voice-llm-stack
+
+    # For docker compose (non-swarm) ensure GPUs are mounted into the container:
+    gpus: all
+
+    # (Optional) keep deploy for swarm usage, but note deploy.* is ignored by docker-compose
     deploy:
       resources:
         reservations:
@@ -12,6 +19,7 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
     ports:
       - "22:22"
       - "8000:8000"
@@ -24,7 +32,6 @@ services:
       - ALLTALK_PORT=7851
       - HEALTH_PORT=8686
     volumes:
-      # Persist installations across restarts
       - ./sillytavern:/home/node/app:rw
       - ./ollama:/root/.ollama:rw
       - ./alltalk:/workspace/alltalk_tts:rw
@@ -37,4 +44,4 @@ services:
       interval: 10s
       timeout: 3s
       retries: 6
-      start_period: 120s  # Longer for first-run installs
+      start_period: 120s
