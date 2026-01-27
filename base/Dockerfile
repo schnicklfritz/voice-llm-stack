@@ -45,10 +45,10 @@ RUN python3 -m venv /opt/image_api_venv \
 # 6: DeepSpeed & CUTLASS Optimization (For 3090 Ampere Support)
 # We clone CUTLASS to a fixed location and set the environment path for DeepSpeed
 RUN git clone --recursive https://github.com/NVIDIA/cutlass /workspace/cutlass
-ENV CUTLASS_PATH=/workspace/cutlass
-TORCH_CUDA_ARCH_LIST="8.6" \
-DS_BUILD_OPS=1 \
-DS_BUILD_SPARSE_ATTN=1
+ENV CUTLASS_PATH=/workspace/cutlass \
+    TORCH_CUDA_ARCH_LIST="8.6" \
+    DS_BUILD_OPS=1 \
+    DS_BUILD_SPARSE_ATTN=1
 
 # Install libaio-dev which is a hard dependency for DeepSpeed's async_io
 RUN apt-get update && apt-get install -y libaio-dev && apt-get clean && rm -rf /var/lib/apt/lists/*
