@@ -14,9 +14,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      # 1. CRITICAL: Reclaim 30GB of space for the monolithic build [web:404]
+      - name: Free Disk Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
 
+      # 2. Setup Buildx (QEMU removed to save CPU/Memory) [web:391]
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -26,19 +35,18 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push image (no secrets baked)
+      # 3. Optimized Build & Push [web:392]
+      - name: Build and push image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./base/Dockerfile
           push: true
+          # We force a single platform to prevent the runner from OOMing [web:391]
+          platforms: linux/amd64 
           tags: |
             ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
-          platforms: linux/amd64
-          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache,mode=max
-
-# Note: If you need to download private model weights at build time,
-# use BuildKit secrets (see documentation) instead of build-args so secrets
-# are not persisted in image history. Prefer runtime download with HF_TOKEN.
+          # Use local cache to speed up "Day 2" changes [web:394]
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
