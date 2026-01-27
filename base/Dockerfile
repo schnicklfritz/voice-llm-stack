@@ -9,7 +9,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # 1. System Dependencies (Optimized for 24.04 and AllTalk v2)
 RUN apt-get update && apt-get install -y \
-    netcat-openbsd wget curl git bzip2 xz-utils ca-certificates \
+    rustc cargo netcat-openbsd wget curl git bzip2 xz-utils ca-certificates \
     openssh-server nano htop net-tools \
     nodejs npm python3 python3-venv python3-dev \
     ffmpeg sox libsndfile1 build-essential tini \
