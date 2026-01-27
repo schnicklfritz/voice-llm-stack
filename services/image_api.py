@@ -1,139 +1,94 @@
 import os
 import io
-import base64
-import uuid
-import logging
-from typing import Optional, List
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from PIL import Image
+import re
 import torch
+import base64
+from fastapi import FastAPI
+from pydantic import BaseModel
+from diffusers import ZImagePipeline, ZImageTransformer2DModel, GGUFQuantizationConfig
 
-# HuggingFace Diffusers
-from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler
+app = FastAPI()
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("image-api")
+# Configuration
+MODEL_ID = "Tongyi-MAI/Z-Image-Turbo"
+GGUF_PATH = "/workspace/z-image-turbo-Q8_0.gguf"
+LORA_DIR = "/workspace/loras"
 
-app = FastAPI(title="Chroma (lodestones) Image API")
-
-# Environment / defaults
-HF_TOKEN = os.environ.get("HF_TOKEN") or os.environ.get("HF_TOKEN", os.environ.get("HF_TOKEN"))
-MODEL_ID = os.environ.get("MODEL_ID", "lodestones/Chroma")
-DEVICE = os.environ.get("DEVICE", "cuda" if torch.cuda.is_available() else "cpu")
-IMAGE_DIR = os.environ.get("IMAGE_DIR", "/app/generated_images")
-MAX_BATCH = int(os.environ.get("MAX_BATCH", "1"))
-
-os.makedirs(IMAGE_DIR, exist_ok=True)
-
-logger.info(f"Device set to: {DEVICE}")
-logger.info(f"Model id: {MODEL_ID}")
-
-# Load pipeline (defer heavy load until startup)
-pipeline: Optional[DiffusionPipeline] = None
+# Global pipeline and tracking
+pipe = None
+LOADED_LORAS = set()
 
 @app.on_event("startup")
-def load_pipeline():
-    global pipeline
-    logger.info("Loading Diffusers pipeline for model: %s", MODEL_ID)
-    # Use safetensors if available; set torch_dtype to float16 for GPU inference.
-    torch_dtype = torch.float16 if DEVICE.startswith("cuda") else torch.float32
+def load_zit():
+    global pipe
+    os.makedirs(LORA_DIR, exist_ok=True)
+    
+    transformer = ZImageTransformer2DModel.from_single_file(
+        GGUF_PATH,
+        quantization_config=GGUFQuantizationConfig(compute_dtype=torch.bfloat16),
+        torch_dtype=torch.bfloat16,
+    )
+    
+    pipe = ZImagePipeline.from_pretrained(
+        MODEL_ID, 
+        transformer=transformer, 
+        torch_dtype=torch.bfloat16
+    ).to("cuda")
+    
+    pipe.enable_model_cpu_offload()
 
-    # Use DPMSolverMultistepScheduler for stable sampling (fast + good quality)
-    try:
-        pipeline = DiffusionPipeline.from_pretrained(
-            MODEL_ID,
-            torch_dtype=torch_dtype,
-            use_safetensors=True,
-            local_files_only=False,
-            revision=None,
-            # pass use_auth_token if present
-            use_auth_token=HF_TOKEN or None,
-        )
-        pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
-        if DEVICE.startswith("cuda"):
-            pipeline = pipeline.to(DEVICE)
-            # enable memory efficient attention if available
-            try:
-                pipeline.enable_xformers_memory_efficient_attention()
-            except Exception:
-                pass
-        logger.info("Pipeline loaded successfully.")
-    except Exception as e:
-        logger.exception("Failed to load pipeline: %s", e)
-        pipeline = None
-
-class GenRequest(BaseModel):
+class ExtrasRequest(BaseModel):
     prompt: str
-    negative_prompt: Optional[str] = ""
-    steps: Optional[int] = 20
-    guidance_scale: Optional[float] = 7.5
-    height: Optional[int] = 512
-    width: Optional[int] = 512
-    seed: Optional[int] = None
-    num_images: Optional[int] = 1
+    seed: int = -1
 
-class GenResponse(BaseModel):
-    ids: List[str]
-    paths: List[str]
-    b64: Optional[List[str]] = None
+@app.post("/api/image")
+def st_extras_mimic(req: ExtrasRequest):
+    global LOADED_LORAS
+    prompt = req.prompt
+    seed = torch.seed() if req.seed == -1 else req.seed
+    generator = torch.Generator("cuda").manual_seed(seed)
+    
+    # 1. Reset active adapters for this specific generation
+    pipe.set_adapters([])
+    
+    # 2. Find all LoRA tags: <lora:filename:weight>
+    lora_matches = re.findall(r"<lora:([^:]+):?([\d.]+)*>", prompt)
+    active_names = []
+    active_weights = []
+    
+    for match in lora_matches:
+        lora_name = match[0]
+        lora_weight = float(match[1]) if match[1] else 1.0
+        lora_path = os.path.join(LORA_DIR, f"{lora_name}.safetensors")
+        
+        if os.path.exists(lora_path):
+            # Only load from disk if not already in VRAM
+            if lora_name not in LOADED_LORAS:
+                pipe.load_lora_weights(lora_path, adapter_name=lora_name)
+                LOADED_LORAS.add(lora_name)
+                print(f"Loaded new LoRA to VRAM: {lora_name}")
+            
+            active_names.append(lora_name)
+            active_weights.append(lora_weight)
+            
+            # Clean prompt of the tag
+            prompt = prompt.replace(f"<lora:{match[0]}:{match[1]}>" if match[1] else f"<lora:{match[0]}>", "")
 
-@app.get("/health")
-def health():
-    ready = pipeline is not None
-    return {"status": "ok", "ready": ready, "model": MODEL_ID, "device": DEVICE}
+    # 3. Apply the persistent adapters
+    if active_names:
+        pipe.set_adapters(active_names, adapter_weights=active_weights)
 
-def save_image_and_return_path(img: Image.Image) -> str:
-    uid = str(uuid.uuid4())
-    path = os.path.join(IMAGE_DIR, f"{uid}.png")
-    img.save(path)
-    return path, uid
-
-def pil_to_base64(img: Image.Image) -> str:
-    buff = io.BytesIO()
-    img.save(buff, format="PNG")
-    b64 = base64.b64encode(buff.getvalue()).decode("utf-8")
-    return b64
-
-@app.post("/generate", response_model=GenResponse)
-def generate(req: GenRequest):
-    if pipeline is None:
-        raise HTTPException(status_code=503, detail="Model pipeline not loaded")
-
-    if req.num_images < 1 or req.num_images > MAX_BATCH:
-        raise HTTPException(status_code=400, detail=f"num_images must be 1..{MAX_BATCH}")
-
-    generator = None
-    if req.seed is not None:
-        gen_device = DEVICE if DEVICE.startswith("cuda") else "cpu"
-        generator = torch.Generator(device=gen_device).manual_seed(int(req.seed))
-
-    try:
-        logger.info("Generating images for prompt: %s", req.prompt[:120])
-        outputs = pipeline(
-            req.prompt,
-            negative_prompt=req.negative_prompt or None,
-            height=req.height,
-            width=req.width,
-            num_inference_steps=int(req.steps),
-            guidance_scale=float(req.guidance_scale),
-            num_images_per_prompt=int(req.num_images),
-            generator=generator,
-        )
-    except Exception as e:
-        logger.exception("Generation failed")
-        raise HTTPException(status_code=500, detail=str(e))
-
-    images = outputs.images if hasattr(outputs, "images") else outputs
-
-    ids = []
-    paths = []
-    b64s = []
-    for img in images:
-        path, uid = save_image_and_return_path(img)
-        ids.append(uid)
-        paths.append(path)
-        # optionally return base64 so the client can display inline
-        b64s.append(pil_to_base64(img))
-
-    return GenResponse(ids=ids, paths=paths, b64=b64s)
+    # 4. Generate with Z-Image Turbo settings
+    image = pipe(
+        prompt=prompt.strip(), 
+        num_inference_steps=9, 
+        guidance_scale=0.0, 
+        generator=generator
+    ).images[0]
+    
+    # Base64 conversion for SillyTavern
+    buffered = io.BytesIO()
+    image.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+    
+    return {"image": img_str}
