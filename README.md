@@ -20,7 +20,7 @@ Before you push
    - HF_TOKEN (if the model requires Hugging Face auth)
 
 2. Add .gitkeep files / create empty directories if they are required by compose:
-   - sillytavern/ ollama/ alltalk/ venv/ logs/ image_store/ models/ chroma_data/
+   - sillytavern/ ollama/ alltalk/ venv/ logs/ image_store/ models/
 
 3. Update docker-compose.yml or QuickPod template with the image names you want to deploy (the workflow tags images as `<DOCKERHUB_USERNAME>/quickpod-voice-llm:latest` and `<DOCKERHUB_USERNAME>/image-api:latest`).
 
@@ -37,10 +37,5 @@ Notes and troubleshooting
 - If Diffusers model requires HF_TOKEN, set it as a secret and as an environment variable for the QuickPod container.
 
 License
-This repo uses the MIT license (see LICENSE).
+This repo uses the MIT license (see LICENSE)
 
-If you want, I can:
-- add a one-file Gradio UI that connects to the voice and image endpoints,
-- add the .github/workflows job that publishes the image-api image (if you'd like separate control),
-- or produce a small QuickPod deployment template (the exact fields your QuickPod UI needs).
-```

@@ -12,5 +12,5 @@ tqdm
 ftfy
 regex
 tokenizers
-# optional: xformers for speed (only install if you know host supports it)
-# xformers
+# REQUIRED for memory-efficient attention on 3090s
+xformers>=0.0.22

@@ -7,4 +7,4 @@ venv/.gitkeep
 logs/.gitkeep
 image_store/.gitkeep
 models/.gitkeep
-chroma_data/.gitkeep
+

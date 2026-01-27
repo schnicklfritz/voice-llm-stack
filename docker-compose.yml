@@ -10,44 +10,29 @@ services:
     gpus: all
     ports:
       - "22:22"
-      - "8000:8000"
-      - "11434:11434"
-      - "7851:7851"
-      - "8686:8686"
+      - "8000:8000"   # SillyTavern UI
+      - "11434:11434" # Ollama API
+      - "7851:7851"   # AllTalk API
+      - "7852:7852"   # AllTalk Gradio UI [web:109]
+      - "7052:7052"   # AllTalk Finetune UI [web:121]
+      - "8686:8686"   # QuickPod Health Port [web:198]
+      - "9000:9000"   # SD 1.5 Image API [web:108]
     environment:
       - ST_PORT=8000
       - OLLAMA_PORT=11434
       - ALLTALK_PORT=7851
       - HEALTH_PORT=8686
+      - HF_TOKEN=${HF_TOKEN:-}
+      - DEVICE=cuda
     volumes:
-      - ./sillytavern:/workspace/sillytavern:rw
+      # Match the case-sensitive paths from your base/Dockerfile
+      - ./sillytavern:/workspace/SillyTavern:rw
       - ./ollama:/root/.ollama:rw
-      - ./alltalk:/workspace/alltalk_tts:rw
-      - ./venv:/opt/venv:rw
+      - ./alltalk:/workspace/alltalk_v2:rw
+      - ./image_store:/app/generated_images:rw
       - ./logs:/var/log/quickpod:rw
-    shm_size: "8gb"
+    # Critical for Dolphin 20B + SD 1.5 concurrency
+    shm_size: "16gb"
     restart: unless-stopped
 
-  image-api:
-    build:
-      context: .
-      dockerfile: docker/image_api.Dockerfile
-    container_name: image-api
-    gpus: all
-    environment:
-      - HF_TOKEN=${HF_TOKEN:-}
-      - MODEL_ID=lodestones/Chroma
-      - DEVICE=cuda
-      - IMAGE_DIR=/app/generated_images
-      - MAX_BATCH=1
-    ports:
-      - "9000:9000"
-    volumes:
-      - ./image_store:/app/generated_images:rw
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/health || exit 1"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
-      start_period: 20s
+

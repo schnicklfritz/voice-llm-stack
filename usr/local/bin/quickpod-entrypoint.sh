@@ -1,79 +1,47 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Load secrets if available
-if [ -f /root/.config/secrets.env ]; then
-    source /root/.config/secrets.env
-    export OPENAI_API_KEY ANTHROPIC_API_KEY HUGGINGFACE_TOKEN
-fi
+# 1. Environment & GPU Paths (Updated for Ollama v0.15.2)
+export LD_LIBRARY_PATH="/usr/lib/ollama:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
+export CUTLASS_PATH="/workspace/cutlass"
+export TORCH_CUDA_ARCH_LIST="8.6"
+export OLLAMA_SCHED_SPREAD=1 # Balanced Dolphin 20B across dual 3090s [web:148]
 
-# GPU library paths
-export LD_LIBRARY_PATH="/usr/local/lib/ollama:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
-export PATH="/opt/venv/bin:$PATH"
-
-# Children management
 pids=()
 
 cleanup() {
     echo "Entrypoint: cleaning up..."
-    for pid in "${pids[@]}"; do
-        kill -TERM "$pid" 2>/dev/null || true
-    done
-    for pid in "${pids[@]}"; do
-        wait "$pid" 2>/dev/null || true
-    done
+    for pid in "${pids[@]}"; do kill -TERM "$pid" 2>/dev/null || true; done
     exit 0
 }
-
 trap 'cleanup' SIGINT SIGTERM EXIT
 
-# GPU diagnostic
-echo "════════════════════════════════════════"
-echo "GPU Diagnostic:"
-ls -la /dev/nvidia* 2>&1 || echo "⚠️  No /dev/nvidia* devices"
-nvidia-smi 2>&1 | head -5 || echo "⚠️  nvidia-smi failed"
-echo "════════════════════════════════════════"
-
-# Start SSH
+# 2. Services Start
 service ssh start
 
-# Install SillyTavern
-if [ ! -d /workspace/sillytavern ]; then
-    git clone --depth 1 https://github.com/SillyTavern/SillyTavern.git -b release /workspace/sillytavern
-    cd /workspace/sillytavern && npm install
-fi
-
-# Install AllTalk
-if [ ! -d /workspace/alltalk_tts ]; then
-    python3 -m venv /opt/venv
-    /opt/venv/bin/pip install --upgrade pip
-    git clone --depth 1 https://github.com/erew123/alltalk_tts.git /workspace/alltalk_tts
-    cd /workspace/alltalk_tts
-    /opt/venv/bin/pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
-    /opt/venv/bin/pip install gradio pydub librosa soundfile transformers accelerate
-fi
-
-# Start services
-ollama serve &
+# QuickPod Health Check (MANDATORY for WebUI) [web:198]
+while true; do nc -l -p 8686 -e /bin/echo "ok" >/dev/null 2>&1; done &
 pids+=($!)
-sleep 5
 
-cd /workspace/alltalk_tts && /opt/venv/bin/python script.py &
+# Ollama v0.15.2 (Dolphin 20B ready)
+ollama serve > /var/log/quickpod/ollama.log 2>&1 &
 pids+=($!)
-sleep 2
 
-cd /workspace/sillytavern && node server.js --listen &
+# SillyTavern (Using the path from Dockerfile)
+cd /workspace/SillyTavern && node server.js --listen > /var/log/quickpod/st.log 2>&1 &
 pids+=($!)
-sleep 1
 
+# SD 1.5 Image API (The new lightweight service) [web:108]
+/opt/image_api_venv/bin/uvicorn /workspace/image_api:app --host 0.0.0.0 --port 9000 > /var/log/quickpod/image.log 2>&1 &
+pids+=($!)
+
+# 3. AllTalk v2 Manual Note
 echo "════════════════════════════════════════"
-echo "Voice-LLM Stack Ready!"
-echo "SillyTavern: http://POD_IP:8000"
-echo "AllTalk TTS: http://POD_IP:7851"
-echo "Ollama API:  http://POD_IP:11434"
+echo "Stack is booting. AllTalk v2 is ready for MANUAL setup."
+echo "SSH in and run: cd /workspace/alltalk_v2 && ./atsetup.sh"
 echo "════════════════════════════════════════"
 
-# Wait for children
+# Keep container alive
 while true; do
-    wait -n && cleanup
+    wait -n || true
 done
