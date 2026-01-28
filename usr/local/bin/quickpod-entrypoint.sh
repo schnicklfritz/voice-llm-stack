@@ -46,5 +46,5 @@ echo "Manual: cd /workspace/alltalk_v2 && ./atsetup.sh"
 echo "Logs: /var/log/quickpod/"
 echo "════════════════════════════════════════"
 
-# Keep container alive
-exec tail -f /dev/null
+# Keep container alive WITHOUT exec
+tail -f /dev/null
