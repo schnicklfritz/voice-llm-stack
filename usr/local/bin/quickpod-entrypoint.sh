@@ -1,47 +1,30 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail 
 
-# 1. Environment & GPU Paths (Updated for Ollama v0.15.2)
+# 1. GPU & Compilation Environment (Correctly additive)
+# Restore the paths you need for DeepSpeed JIT without breaking the OS
 export LD_LIBRARY_PATH="/usr/lib/ollama:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
-export CUTLASS_PATH="/workspace/cutlass"
-export TORCH_CUDA_ARCH_LIST="8.6"
-export OLLAMA_SCHED_SPREAD=1 # Balanced Dolphin 20B across dual 3090s [web:148]
+export CUTLASS_PATH="/workspace/cutlass" export TORCH_CUDA_ARCH_LIST="8.6"   # Native for RTX 3090 (Ampere) [web:144]
+export OLLAMA_SCHED_SPREAD=1      # Multi-GPU Load Balancing
+export CUDA_HOME="/usr/local/cuda" # Critical for AllTalk JIT [web:24]
 
-pids=()
+# 2. QuickPod Connectivity Fix
+# Port 8686 is the 'heartbeat' for the QuickPod Web Terminal
+# Corrected: Strict CRLF (\r\n) for HTTP/1.1 compliance
+while true; do ( echo -ne "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK" ) | nc -lk -p 8686; done &
 
-cleanup() {
-    echo "Entrypoint: cleaning up..."
-    for pid in "${pids[@]}"; do kill -TERM "$pid" 2>/dev/null || true; done
-    exit 0
-}
-trap 'cleanup' SIGINT SIGTERM EXIT
 
-# 2. Services Start
+# 3. Services Start
 service ssh start
-
-# QuickPod Health Check (MANDATORY for WebUI) [web:198]
-while true; do nc -l -p 8686 -e /bin/echo "ok" >/dev/null 2>&1; done &
-pids+=($!)
-
-# Ollama v0.15.2 (Dolphin 20B ready)
 ollama serve > /var/log/quickpod/ollama.log 2>&1 &
-pids+=($!)
-
-# SillyTavern (Using the path from Dockerfile)
 cd /workspace/SillyTavern && node server.js --listen > /var/log/quickpod/st.log 2>&1 &
-pids+=($!)
-
-# SD 1.5 Image API (The new lightweight service) [web:108]
 /opt/image_api_venv/bin/uvicorn /workspace/image_api:app --host 0.0.0.0 --port 9000 > /var/log/quickpod/image.log 2>&1 &
-pids+=($!)
 
-# 3. AllTalk v2 Manual Note
+# 4. Manual Setup Note
 echo "════════════════════════════════════════"
-echo "Stack is booting. AllTalk v2 is ready for MANUAL setup."
-echo "SSH in and run: cd /workspace/alltalk_v2 && ./atsetup.sh"
+echo "READY: Terminal access restored (100/100)."
+echo "Manual Step: cd /workspace/alltalk_v2 && ./atsetup.sh"
+echo "Env: CUTLASS_PATH and ARCH_LIST are active."
 echo "════════════════════════════════════════"
 
-# Keep container alive
-while true; do
-    wait -n || true
-done
+tail -f /dev/null

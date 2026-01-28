@@ -2,7 +2,6 @@ FROM nvidia/cuda:12.8.1-runtime-ubuntu24.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
-    LD_LIBRARY_PATH="/usr/lib/ollama:/usr/lib/x86_64-linux-gnu" \
     NVIDIA_VISIBLE_DEVICES=all \
     NVIDIA_DRIVER_CAPABILITIES=compute,utility \
     CUDA_VISIBLE_DEVICES=0,1
