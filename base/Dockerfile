@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     ffmpeg sox libsndfile1 build-essential tini \
     && mkdir -p /var/run/sshd /root/.ollama /workspace /var/log/quickpod \
     && sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config \
+    && ssh-keygen -A \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # 2. Ollama Installation (Fixed Path)
