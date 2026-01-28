@@ -86,9 +86,10 @@ def st_extras_mimic(req: ExtrasRequest):
         generator=generator
     ).images[0]
     
-    # Base64 conversion for SillyTavern
+    # Convert to base64 for SillyTavern (JPEG for speed)
     buffered = io.BytesIO()
-    image.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        image.save(buffered, format="JPEG", quality=85, optimize=False)
+        img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+
     
     return {"image": img_str}

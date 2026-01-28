@@ -1,44 +1,50 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set +e  # Don't exit on errors - critical for debugging
 
-# 0. ensure log dir
-mkdir -p /var/run/sshd /var/log/quickpod
+mkdir -p /var/log/quickpod /workspace/loras
 
-# 1. GPU & Compilation Environment (Correctly additive)
+# GPU Environment
 export LD_LIBRARY_PATH="/usr/lib/ollama:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
 export CUTLASS_PATH="/workspace/cutlass"
 export TORCH_CUDA_ARCH_LIST="8.6"
 export OLLAMA_SCHED_SPREAD=1
 export CUDA_HOME="/usr/local/cuda"
 
-# 2. Ensure SSH host keys exist
-if [ ! -f /etc/ssh/ssh_host_rsa_key ]; then
-  ssh-keygen -A
+# Download Z-Image-Turbo GGUF if missing
+GGUF_PATH="/workspace/z-image-turbo-Q8_0.gguf"
+if [ ! -f "$GGUF_PATH" ]; then
+    echo "Downloading Z-Image-Turbo GGUF (~7.5GB)..."
+    wget -q --show-progress \
+        https://huggingface.co/city96/Z-Image-Turbo-GGUF/resolve/main/z-image-turbo-Q8_0.gguf \
+        -O "$GGUF_PATH" || echo "⚠ Download failed, image API won't start"
 fi
 
-# 3. QuickPod Connectivity Fix (heartbeat)
-# Run in background so it doesn't block startup
-while true; do ( echo -ne "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK" ) | nc -lk -p 8686; done &
+# Start services
+echo "Starting Ollama..."
+touch /var/log/quickpod/ollama.log
+/usr/bin/ollama serve > /var/log/quickpod/ollama.log 2>&1 &
 
-# 4. Start sshd reliably (log to quickpod log)
-# Start sshd in daemon mode so it forks and we can continue starting other services.
-# If you prefer to keep it foreground for debugging, run: /usr/sbin/sshd -D -e
-/usr/sbin/sshd -E /var/log/quickpod/sshd.log &
-
-# 5. Start other services (backgrounded) and make sure logs exist
-touch /var/log/quickpod/ollama.log /var/log/quickpod/st.log /var/log/quickpod/image.log
-ollama serve > /var/log/quickpod/ollama.log 2>&1 &
+echo "Starting SillyTavern..."
+touch /var/log/quickpod/st.log
 cd /workspace/SillyTavern && node server.js --listen > /var/log/quickpod/st.log 2>&1 &
-if [ -x /opt/image_api_venv/bin/uvicorn ]; then
-  /opt/image_api_venv/bin/uvicorn /workspace/image_api:app --host 0.0.0.0 --port 9000 > /var/log/quickpod/image.log 2>&1 &
+
+# Start Image API only if GGUF exists
+if [ -f "$GGUF_PATH" ] && [ -x /opt/image_api_venv/bin/uvicorn ]; then
+    echo "Starting Z-Image-Turbo API..."
+    touch /var/log/quickpod/image.log
+    cd /workspace
+    /opt/image_api_venv/bin/uvicorn services.image_api:app \
+        --host 0.0.0.0 --port 9000 \
+        > /var/log/quickpod/image.log 2>&1 &
+else
+    echo "⚠ Z-Image-Turbo API skipped (GGUF missing or venv not ready)"
 fi
 
-# 6. Helpful status and next steps message
 echo "════════════════════════════════════════"
-echo "READY: Terminal access restored (if sshd started)."
-echo "Manual Step: cd /workspace/alltalk_v2 && ./atsetup.sh"
-echo "Logs: /var/log/quickpod/*"
+echo "✓ Container ready - Connect via QuickPod SSH"
+echo "Manual: cd /workspace/alltalk_v2 && ./atsetup.sh"
+echo "Logs: /var/log/quickpod/"
 echo "════════════════════════════════════════"
 
-# 7. Follow logs so container stays alive and so you can see sshd errors
-exec tail -F /var/log/quickpod/*.log
+# Keep container alive
+exec tail -f /dev/null

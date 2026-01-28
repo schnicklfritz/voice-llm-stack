@@ -9,12 +9,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # 1. System Dependencies (Optimized for 24.04 and AllTalk v2)
 RUN apt-get update && apt-get install -y \
     rustc cargo netcat-openbsd wget curl git bzip2 xz-utils ca-certificates \
-    openssh-server nano htop net-tools \
+    nano htop net-tools \
     nodejs npm python3 python3-venv python3-dev \
-    ffmpeg sox libsndfile1 build-essential tini \
+    ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libswresample-dev sox libsndfile1 build-essential tini \
     && mkdir -p /var/run/sshd /root/.ollama /workspace /var/log/quickpod \
-    && sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config \
-    && ssh-keygen -A \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # 2. Ollama Installation (Fixed Path)
@@ -29,7 +27,7 @@ RUN git clone https://github.com/erew123/alltalk_tts /workspace/alltalk_v2 \
 # 4. SillyTavern Hydration (Fallback UI)
 RUN git clone https://github.com/SillyTavern/SillyTavern /workspace/SillyTavern
 
-# STEP 5: Consolidated SD 1.5 Image-API Environment
+# STEP 5: Z-Image-Turbo Image-API Environment (GGUF Quantized)
 # We explicitly install CUDA-accelerated PyTorch for the 3090s
 WORKDIR /workspace
 COPY requirements.txt /workspace/requirements.txt
